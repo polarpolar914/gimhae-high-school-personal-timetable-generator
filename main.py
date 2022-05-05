@@ -7,7 +7,7 @@ from tkinter import *
 from tkinter.filedialog import askopenfilename
 from tkinter.filedialog import askdirectory
 from win32com.client import Dispatch
-
+from docx import Document
 
 days = 0
 times = []
@@ -28,19 +28,35 @@ def getsubject():
                 break
             subject.append(i)
 ########################################################################################
+def Selfstudy():
+    df_temp = time.copy()
+    for i,colN in enumerate(df_temp.iloc[0,2:]):
+        for jj in df_temp.index.tolist():
+            j = int(jj)
+            if df_temp.iloc[j,i+2] == '자습':
+                if '반' in colN :
+                    selfN = df_temp.iloc[j,1] + colN[:-1]
+                    selfstudy.append(selfN)
+                else:
+                    selfN = df_temp.iloc[j, 1] + colN
+                    selfstudy.append(selfN)
+########################################################################################
 def makedataFrame():
+    global time
     global times
     global days
     global gclass
     global max_class
     global max_class_stack
     global classplacement
-
+    global selfstudy
     days = 0
     times = []
     gclass = []
     max_class = []
     max_class_stack = [0]
+    selfstudy =[]
+
     try:
         readfile = askopenfilename()
         classplacement = pd.read_excel(readfile,sheet_name="학생별 반배정", header=1, dtype=str)
@@ -48,6 +64,8 @@ def makedataFrame():
 
         time = pd.read_excel(readfile, sheet_name="교실별 과목배정", header=0)
         time = time.fillna("")
+
+        Selfstudy()
 
         list = []#임시
         before = classplacement["학번"][0]
@@ -92,7 +110,6 @@ def makeban():
     class_seat = classplacement.copy()
     classplace_by_gclass = classplacement.set_index('학번')
     Ban=[]
-
     for col in subject[2:]:    #교실 추출
         for i in gclass:
             for j in i:
@@ -104,7 +121,10 @@ def makeban():
             seat = 1
             for i in ban[ban[col].isin([B])].index:
                 ban.at[i,col] = seat
-                class_seat.at[i, col] = str(classplacement.at[i, col]) + "/좌석:" + str(ban.at[i, col])
+                if col + str(classplacement.at[i, col]) in selfstudy:
+                    class_seat.at[i, col] = str(classplacement.at[i, col]) + "/좌석:" + str(ban.at[i, col])
+                else:
+                    class_seat.at[i, col] = str(classplacement.at[i, col]) + "/좌석:" + str(ban.at[i, col]) + '*'
                 seat += 1
 ########################################################################################
 def listboxin():#동시에 치는 과목 선택용 리스트 박스에 과목 불러오기
@@ -160,7 +180,7 @@ def overrap():  # btn2 command 동시에 치는 과목 묶기
 def write(): #데이터프레임 으로 엑셀 쓰기
     makeban()
     writefile = askdirectory()
-    daypd = pd.DataFrame(data=['1일차', ' ', '2일차', ' ', '3일차', ' ', '4일차', ' ', '5일차', ' ', '6일차', ' ', '7일차', ' ', '8일차', ' ', '9일차',' ', '10일차', ' ', '11일차', ' ', '12일차', ' '],index=[' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',' ', ' ', ' '], columns=[' '])
+    daysget()
     day2 =days*2
     if(writefile != ''):
         Writefile = writefile
@@ -179,7 +199,25 @@ def write(): #데이터프레임 으로 엑셀 쓰기
             tkinter.messagebox.showinfo(title="완료", message="파일 생성이 완료 되었습니다")
         except:
             return
-
+#######################################################################################
+def daysget():
+    global daypd
+    temp = txtb.get().split(',')
+    inputdays = []
+    index1 = []
+    try:
+        if (txtb.get() == ''):
+            daypd = pd.DataFrame(
+                data=['1일차', ' ', '2일차', ' ', '3일차', ' ', '4일차', ' ', '5일차', ' ', '6일차', ' ', '7일차', ' ', '8일차', ' ','9일차', ' ', '10일차', ' ', '11일차', ' ', '12일차', ' '],index=[' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',' ', ' ', ' ', ' ', ' '], columns=[' '])
+        else:
+            for i in range(len(temp)):
+                index1.append(' ')
+                index1.append(' ')
+                inputdays.append(temp[i])
+                inputdays.append(' ')
+            daypd = pd.DataFrame(data=inputdays, index=index1, columns=[' '])
+    except:
+        tkinter.messagebox.showerror(title="ERROR!", message="입력된 날짜 인식에 오류가 발생했습니다.")
 ########################################################################################
 def student_check(): #조회부분
     try:
@@ -210,8 +248,9 @@ def student_check(): #조회부분
                 table.delete(*table.get_children())
                 writefile = 'C:/' + str(txtb1.get()) + '.xlsx'
                 sheet = []
-                daypd = pd.DataFrame(data=['1일차', ' ', '2일차', ' ', '3일차', ' ', '4일차', ' ', '5일차', ' ', '6일차', ' ', '7일차', ' ', '8일차',' ', '9일차', ' ', '10일차', ' ', '11일차', ' ', '12일차', ' '],index=[' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',' ', ' ', ' ', ' ', ' ', ' '], columns=[' '])
+                daysget()
                 day2 = days * 2
+
                 with pd.ExcelWriter(writefile) as writer:
                     j=txtb1.get()
                     class_seat.loc[:, subject[0:2]][class_seat.학번 == f'{j}'].to_excel(writer, sheet_name=f'{j}',startcol=1,index=FALSE)
@@ -274,13 +313,12 @@ def student_check(): #조회부분
         btn2 = Button(new_window, text="인쇄", width=15, command=printone)
         btn2.grid(row=3, column=1)
 
-
         new_window.mainloop()
     except:
         tkinter.messagebox.showerror(title="ERROR!", message="ERROR!")
 ########################################################################################
 root = Tk()
-root.geometry("400x445")
+root.geometry("400x480")
 frame = Frame(root)
 
 root.resizable(width=FALSE, height=FALSE)
@@ -309,4 +347,12 @@ btn1.grid(row=0,column=2)
 btn2.grid(row=1,column=2)
 btn3.grid(row=2,column=2)
 btn4.grid(row=3,column=2)
+
+lbl = Label(root,text="날짜 입력(,로 구분하여 입력하세요)")
+lbl.grid(row=4,column=0)
+
+str1 = StringVar()
+txtb = tkinter.ttk.Entry(root,width = 33,textvariable=str1)
+txtb.grid(row=5, column =0)
+
 root.mainloop()
